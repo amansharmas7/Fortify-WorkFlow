@@ -1,0 +1,73 @@
+{
+  "entities": {
+    "Process": {
+      "title": "Process Template",
+      "description": "A generated process documentation template.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "description": "The title of the process." },
+        "description": { "type": "string", "description": "A brief overview of the process." },
+        "targetAudience": { "type": "string", "description": "Who this process is for." },
+        "steps": {
+          "type": "array",
+          "description": "The sequential steps of the process.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "title": { "type": "string" },
+              "description": { "type": "string" },
+              "role": { "type": "string" },
+              "tools": { "type": "array", "items": { "type": "string" } }
+            },
+            "required": ["title", "description", "role"]
+          }
+        },
+        "authorId": { "type": "string", "description": "The UID of the user who generated this." },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "status": { "type": "string", "enum": ["draft", "review", "ready", "archived"] }
+      },
+      "required": ["title", "description", "targetAudience", "steps", "authorId", "createdAt", "status"]
+    },
+    "User": {
+      "title": "User Profile",
+      "description": "Basic user information.",
+      "type": "object",
+      "properties": {
+        "displayName": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "photoURL": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "editor", "viewer"] }
+      },
+      "required": ["displayName", "email", "role"]
+    },
+    "Workflow": {
+      "title": "Active Workflow",
+      "description": "An instance of a process currently being executed.",
+      "type": "object",
+      "properties": {
+        "processId": { "type": "string" },
+        "title": { "type": "string" },
+        "status": { "type": "string", "enum": ["active", "paused", "completed"] },
+        "progress": { "type": "number" },
+        "assignedTo": { "type": "array", "items": { "type": "string" } },
+        "startedAt": { "type": "string", "format": "date-time" },
+        "lastUpdated": { "type": "string", "format": "date-time" }
+      },
+      "required": ["processId", "title", "status", "progress", "startedAt", "lastUpdated"]
+    }
+  },
+  "firestore": {
+    "/processes/{processId}": {
+      "schema": "Process",
+      "description": "Collection of process templates."
+    },
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profile documents."
+    },
+    "/workflows/{workflowId}": {
+      "schema": "Workflow",
+      "description": "Collection of active process instances."
+    }
+  }
+}

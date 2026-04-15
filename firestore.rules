@@ -1,0 +1,75 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        request.auth.token.email == "amanforcodeing@gmail.com";
+    }
+
+    function hasRequiredFields(data, fields) {
+      return data.keys().hasAll(fields);
+    }
+
+    function isValidProcess(data) {
+      return hasRequiredFields(data, ['title', 'description', 'targetAudience', 'steps', 'authorId', 'createdAt', 'status']) &&
+             data.title is string && data.title.size() < 200 &&
+             data.description is string && data.description.size() < 2000 &&
+             data.targetAudience is string && data.targetAudience.size() < 500 &&
+             data.steps is list && data.steps.size() < 50 &&
+             (data.authorId == (isAuthenticated() ? request.auth.uid : "guest_user")) &&
+             data.createdAt is timestamp &&
+             data.status in ['draft', 'review', 'ready', 'archived'];
+    }
+
+    function isValidWorkflow(data) {
+      return hasRequiredFields(data, ['processId', 'title', 'status', 'progress', 'startedAt', 'lastUpdated']) &&
+             data.processId is string &&
+             data.title is string &&
+             data.status in ['active', 'paused', 'completed'] &&
+             data.progress is number && data.progress >= 0 && data.progress <= 100 &&
+             data.startedAt is timestamp &&
+             data.lastUpdated is timestamp;
+    }
+
+    function isValidUser(data) {
+      return hasRequiredFields(data, ['displayName', 'email', 'role']) &&
+             data.displayName is string &&
+             data.email is string &&
+             data.role in ['admin', 'editor', 'viewer'];
+    }
+
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow create: if isOwner(userId) && isValidUser(request.resource.data) && (request.resource.data.role == 'viewer' || isAdmin());
+      allow update: if (isOwner(userId) && isValidUser(request.resource.data) && request.resource.data.role == resource.data.role) || isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    match /processes/{processId} {
+      allow get, list: if true;
+      allow create: if isValidProcess(request.resource.data);
+      allow update: if isAuthenticated() && isValidProcess(request.resource.data) && (resource.data.authorId == request.auth.uid || isAdmin());
+      allow delete: if isAuthenticated() && (resource.data.authorId == request.auth.uid || isAdmin());
+    }
+
+    match /workflows/{workflowId} {
+      allow get, list: if true;
+      allow create: if isAuthenticated() && isValidWorkflow(request.resource.data);
+      allow update: if isAuthenticated() && isValidWorkflow(request.resource.data);
+      allow delete: if isAuthenticated() && isAdmin();
+    }
+
+    match /_connection_test_/{docId} {
+      allow read: if true;
+    }
+  }
+}
