@@ -116,6 +116,7 @@ The API validates prompt length and generated response shape, limits JSON reques
 | --- | --- |
 | npm run dev | Start the Vite frontend |
 | npm run dev:api | Start the Express API for local development |
+| npm run dev:vite | Start the Vite frontend separately |
 | npm start | Start the Express server and serve the production build |
 | npm run lint | Type-check TypeScript without emitting files |
 | npm test | Run server API tests |
@@ -137,6 +138,8 @@ The API validates prompt length and generated response shape, limits JSON reques
 ~~~text
 .
 ├── components/              # Reusable UI primitives
+├── scripts/
+│   └── dev.js                # Starts and supervises API + Vite in development
 ├── server/
 │   ├── index.js              # Trusted Gemini API and static-file server
 │   └── index.test.js         # API validation and rate-limit tests

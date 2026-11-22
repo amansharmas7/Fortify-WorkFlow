@@ -26,6 +26,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Check development runner syntax
+        run: node --check scripts/dev.js
+
       - name: Run server API tests
         run: npm test
 
