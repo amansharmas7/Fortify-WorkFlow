@@ -27,8 +27,9 @@ Fortify Workflow is a React and TypeScript application prototype for turning pro
 
 - React 19 and TypeScript
 - Vite 6
+- Express server for Gemini requests
 - Firebase Authentication and Cloud Firestore
-- Google GenAI SDK (Gemini)
+- Google GenAI SDK (server-side only)
 - Tailwind CSS, Base UI/Radix components, Lucide icons, Motion, and Sonner
 - React Router
 
@@ -37,102 +38,121 @@ Fortify Workflow is a React and TypeScript application prototype for turning pro
 - Node.js 20 LTS or newer
 - npm
 - A Firebase project with Authentication and Cloud Firestore enabled
-- A Gemini API key for process generation
+- A Gemini API key stored only in the server environment
 
 ## Run locally
 
 ### 1. Clone and install
 
-```bash
+~~~bash
 git clone https://github.com/amansharmas7/Fortify-WorkFlow.git
 cd Fortify-WorkFlow
 npm ci
-```
+~~~
 
-### 2. Configure environment variables
+### 2. Configure the server environment
 
-Copy the example file:
+Copy the example file to .env:
 
 **macOS / Linux**
 
-```bash
-cp .env.example .env.local
-```
+~~~bash
+cp .env.example .env
+~~~
 
 **Windows PowerShell**
 
-```powershell
-Copy-Item .env.example .env.local
-```
+~~~powershell
+Copy-Item .env.example .env
+~~~
 
-Set `GEMINI_API_KEY` in `.env.local`. Keep this file private. `APP_URL` is used by the hosted AI Studio environment and only needs to be set when your deployment requires it.
-
-**Important:** Vite currently injects `GEMINI_API_KEY` into the browser bundle. A browser user can inspect and extract that key. Use a restricted key with appropriate API/referrer restrictions and quotas for local experimentation. For production, move Gemini requests behind a trusted server-side endpoint and keep the privileged key on the server.
+Set GEMINI_API_KEY to your Gemini key. Keep .env private and never prefix the key with VITE_. PORT defaults to 3001; ALLOWED_ORIGINS is a comma-separated allowlist of browser origins. The local Vite origin is already included in the example.
 
 ### 3. Configure Firebase
 
-The app reads its Firebase web configuration from `firebase-applet-config.json`. Point it to a Firebase project you control and enable the Authentication provider(s) and Firestore database required by the app.
+The app reads its Firebase web configuration from firebase-applet-config.json. Point it to a Firebase project you control and enable the Authentication provider(s) and Firestore database required by the app.
 
-Review [firestore.rules](firestore.rules) before deploying them. Firebase web configuration is not an access-control boundary; Firestore Security Rules determine what clients can read and write.
+Review firestore.rules before deploying them. Firebase web configuration is not an access-control boundary; Firestore Security Rules determine what clients can read and write.
 
 **Current rules are demonstration-only:** process and workflow documents are publicly readable, unauthenticated process creation is possible with the guest author marker, and any authenticated user can update workflow documents. Team-role UI checks do not replace server-enforced authorization. Do not use the current rules with confidential health, employee, patient, or operational data.
 
-### 4. Start the development server
+### 4. Start the API and Vite
 
-```bash
+Open two terminals from the repository root.
+
+Terminal 1 — server-side Gemini API:
+
+~~~bash
+npm run dev:api
+~~~
+
+Terminal 2 — React/Vite frontend:
+
+~~~bash
 npm run dev
-```
+~~~
 
-Vite serves the application on port `3000` (configured in `vite.config.ts`).
+Vite serves the app on port 3000 and proxies /api/* to the Express server on port 3001. The browser sends only the process prompt to the same-origin endpoint; the Gemini API key remains in the server process.
+
+## Production deployment
+
+Build the frontend and run the Express server in the same deployment:
+
+~~~bash
+npm ci
+npm run lint
+npm test
+npm run build
+npm start
+~~~
+
+Set GEMINI_API_KEY, PORT, and ALLOWED_ORIGINS in the hosting provider's server-side environment or secret manager. The Express process serves the built dist/ directory and the /api/generate-process endpoint. Do not deploy dist/ as a standalone static site if AI generation is required; a trusted server endpoint must remain available.
+
+The API validates prompt length and generated response shape, limits JSON request size, applies a per-process IP rate limit, checks configured browser origins, and returns generic upstream errors. The in-memory rate limiter is a basic abuse-control measure, not a distributed quota system. For multi-instance or public production deployments, add a shared rate limiter (for example Redis), authenticated user quotas, monitoring, and provider-side spending limits.
 
 ## Available scripts
 
 | Command | Description |
 | --- | --- |
-| `npm run dev` | Start the Vite development server |
-| `npm run lint` | Type-check TypeScript without emitting files |
-| `npm run build` | Create the production build in `dist/` |
-| `npm run preview` | Preview the production build |
-| `npm run clean` | Remove the generated build directory (Windows/macOS/Linux) |
+| npm run dev | Start the Vite frontend |
+| npm run dev:api | Start the Express API for local development |
+| npm start | Start the Express server and serve the production build |
+| npm run lint | Type-check TypeScript without emitting files |
+| npm test | Run server API tests |
+| npm run build | Create the production build in dist/ |
+| npm run preview | Preview the frontend build (without the Express API) |
+| npm run clean | Remove the generated build directory |
 
-Run the checks before opening a pull request:
+## Security configuration
 
-```bash
-npm run lint
-npm run build
-```
-
-GitHub Actions runs dependency installation, type-checking, and a production build on pushes and pull requests to `main`.
+- **Gemini credential:** GEMINI_API_KEY is read by server/index.js only. It is not defined in Vite, imported by client modules, or included in the browser bundle. If a key was previously exposed in a deployed client bundle, rotate it in Google AI Studio/Google Cloud.
+- **Origins:** Set ALLOWED_ORIGINS to the exact frontend origins that should call the API. Origin checks are a browser-origin control, not a replacement for authentication.
+- **Abuse prevention:** The endpoint enforces prompt size, JSON body size, response-shape validation, and a small in-memory per-IP rate limit. Add shared rate limiting and authenticated quotas before public production use.
+- **Firebase:** Replace demonstration Firestore rules with least-privilege rules aligned to the actual user, organization, and role model. Enforce permissions in Firestore Security Rules or a trusted backend, not only in the UI.
+- **Secrets:** Never commit .env, .env.local, API keys, service-account files, or other private credentials.
+- **Data:** Do not store personal, health, patient, or employee data in this prototype until the access model and rules have been reviewed.
 
 ## Repository layout
 
-```text
+~~~text
 .
 ├── components/              # Reusable UI primitives
+├── server/
+│   ├── index.js              # Trusted Gemini API and static-file server
+│   └── index.test.js         # API validation and rate-limit tests
 ├── src/
-│   ├── components/layout/   # App shell, navigation, sidebar, footer
-│   ├── components/ui/       # Shared UI and error boundary
-│   ├── lib/                 # Firebase and Gemini integrations
-│   ├── pages/               # Dashboard, generator, library, workflows, team, settings
+│   ├── components/layout/
+│   ├── components/ui/
+│   ├── lib/                  # Firebase and same-origin Gemini API client
+│   ├── pages/
 │   ├── App.tsx
 │   └── main.tsx
-├── firestore.rules          # Demonstration Firestore rules; review before deployment
+├── firestore.rules
 ├── firebase-applet-config.json
 ├── .env.example
 ├── package.json
-├── package-lock.json
-└── vite.config.ts
-```
-
-## Security and deployment checklist
-
-- Never commit `.env.local`, API keys, service-account files, or other private credentials.
-- Move Gemini calls to a server-side API before production deployment.
-- Replace the demonstration Firestore rules with least-privilege rules aligned to the actual user, organization, and role model.
-- Enforce role changes and workflow permissions in Firestore Security Rules or a trusted backend, not only in the UI.
-- Add Firebase Emulator tests for allowed and denied access before deploying new rules.
-- Remove placeholder dashboard metrics and wire export/invitation controls before describing those features as operational.
-- Do not store personal, health, patient, or employee data in this prototype.
+└── package-lock.json
+~~~
 
 ## Contributing
 

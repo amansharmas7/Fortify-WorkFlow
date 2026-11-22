@@ -1,7 +1,3 @@
-import { GoogleGenAI, Type } from "@google/genai";
-
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
-
 export interface ProcessStep {
   title: string;
   description: string;
@@ -16,41 +12,26 @@ export interface ProcessTemplate {
   steps: ProcessStep[];
 }
 
+/**
+ * Requests a process template from the same-origin server API.
+ * The Gemini credential is never imported into or embedded in the browser bundle.
+ */
 export async function generateProcessTemplate(prompt: string): Promise<ProcessTemplate> {
-  const response = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
-    contents: `Generate a detailed, standardized process documentation template for: ${prompt}. 
-    The documentation should be clear and user-friendly for non-technical team members at Fortify Health.`,
-    config: {
-      responseMimeType: "application/json",
-      responseSchema: {
-        type: Type.OBJECT,
-        properties: {
-          title: { type: Type.STRING },
-          description: { type: Type.STRING },
-          targetAudience: { type: Type.STRING },
-          steps: {
-            type: Type.ARRAY,
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                title: { type: Type.STRING },
-                description: { type: Type.STRING },
-                role: { type: Type.STRING },
-                tools: { type: Type.ARRAY, items: { type: Type.STRING } },
-              },
-              required: ["title", "description", "role"],
-            },
-          },
-        },
-        required: ["title", "description", "targetAudience", "steps"],
-      },
-    },
+  const response = await fetch("/api/generate-process", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "same-origin",
+    body: JSON.stringify({ prompt }),
   });
 
-  if (!response.text) {
-    throw new Error("Failed to generate process template");
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const message =
+      payload && typeof payload.error === "string"
+        ? payload.error
+        : "The process template could not be generated.";
+    throw new Error(message);
   }
 
-  return JSON.parse(response.text);
+  return payload as ProcessTemplate;
 }
